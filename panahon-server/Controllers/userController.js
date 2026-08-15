@@ -1,11 +1,12 @@
 const User = require('../Models/userModel');
+const { HttpStatus } = require('../config/constants');
 
 exports.getAllUsers = async (req, res) => {
     try {
         const users = await User.find();
-        res.status(200).json(users);
+        res.status(HttpStatus.OK).json(users);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: error.message });
     }
 };
 
@@ -13,8 +14,8 @@ exports.createUser = async (req, res) => {
     try {
         const newUser = new User(req.body);
         const savedUser = await newUser.save();
-        res.status(201).json(savedUser);
+        res.status(HttpStatus.CREATED).json(savedUser);
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(HttpStatus.BAD_REQUEST).json({ message: error.message });
     }
 };

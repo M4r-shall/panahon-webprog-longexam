@@ -22,12 +22,12 @@ mongoose.connect(process.env.MONGO_URI)
 .catch(err => console.log('MongoDB connection error:', err));
 
 // Routes
-app.use('/api/categories', categoryRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/reviews', reviewRoutes);
-app.use('/api/carts', cartRoutes);
-app.use('/api/orders', orderRoutes);
+app.use('/api/v1/categories', categoryRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/reviews', reviewRoutes);
+app.use('/api/v1/carts', cartRoutes);
+app.use('/api/v1/orders', orderRoutes);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);

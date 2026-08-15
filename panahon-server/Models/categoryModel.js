@@ -5,7 +5,4 @@ const categorySchema = new mongoose.Schema({
     description: { type: String }
 }, { timestamps: true });
 
-// Index for frequent category name lookups
-categorySchema.index({ categoryName: 1 });
-
 module.exports = mongoose.model('Category', categorySchema);

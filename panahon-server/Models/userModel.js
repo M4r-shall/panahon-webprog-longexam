@@ -9,7 +9,4 @@ const userSchema = new mongoose.Schema({
     address: { type: String }
 }, { timestamps: true });
 
-// Index for login queries
-userSchema.index({ email: 1 });
-
 module.exports = mongoose.model('User', userSchema);

@@ -1,11 +1,12 @@
 const Cart = require('../Models/cartModel');
+const { HttpStatus } = require('../config/constants');
 
 exports.getAllCarts = async (req, res) => {
     try {
         const carts = await Cart.find().populate('user', 'firstName lastName').populate('items.product');
-        res.status(200).json(carts);
+        res.status(HttpStatus.OK).json(carts);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: error.message });
     }
 };
 
@@ -13,8 +14,8 @@ exports.createCart = async (req, res) => {
     try {
         const newCart = new Cart(req.body);
         const savedCart = await newCart.save();
-        res.status(201).json(savedCart);
+        res.status(HttpStatus.CREATED).json(savedCart);
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(HttpStatus.BAD_REQUEST).json({ message: error.message });
     }
 };

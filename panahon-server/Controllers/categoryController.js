@@ -1,11 +1,12 @@
 const Category = require('../Models/categoryModel');
+const { HttpStatus } = require('../config/constants');
 
 exports.getAllCategories = async (req, res) => {
     try {
         const categories = await Category.find();
-        res.status(200).json(categories);
+        res.status(HttpStatus.OK).json(categories);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ message: error.message });
     }
 };
 
@@ -13,8 +14,8 @@ exports.createCategory = async (req, res) => {
     try {
         const newCategory = new Category(req.body);
         const savedCategory = await newCategory.save();
-        res.status(201).json(savedCategory);
+        res.status(HttpStatus.CREATED).json(savedCategory);
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(HttpStatus.BAD_REQUEST).json({ message: error.message });
     }
 };
