@@ -6,9 +6,9 @@ const { HttpStatus } = require('../config/constants');
 exports.getAllProducts = async (req, res) => {
     try {
         const { page = 1, limit = 10, search, sort, category, supplier, ...filters } = req.query;
-        
+
         let query = {};
-        
+
         // Keyword Search
         if (search) {
             query.$or = [
@@ -33,7 +33,7 @@ exports.getAllProducts = async (req, res) => {
             }
         }
 
-        // Additional filters (e.g. supplier mapped to seller if needed, though usually an ID)
+        // Additional filters 
         Object.assign(query, filters);
 
         // Sorting
@@ -55,7 +55,7 @@ exports.getAllProducts = async (req, res) => {
             .sort(sortOption)
             .skip(skip)
             .limit(limitNum);
-            
+
         const totalProducts = await Product.countDocuments(query);
 
         res.status(HttpStatus.OK).json({
@@ -68,9 +68,9 @@ exports.getAllProducts = async (req, res) => {
             data: products
         });
     } catch (error) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ 
-            success: false, 
-            message: error.message 
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: error.message
         });
     }
 };
@@ -86,9 +86,9 @@ exports.createProduct = async (req, res) => {
             data: savedProduct
         });
     } catch (error) {
-        res.status(HttpStatus.BAD_REQUEST).json({ 
-            success: false, 
-            message: error.message 
+        res.status(HttpStatus.BAD_REQUEST).json({
+            success: false,
+            message: error.message
         });
     }
 };
