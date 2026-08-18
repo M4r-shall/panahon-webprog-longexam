@@ -41,10 +41,18 @@ exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-        if (!user) return res.status(HttpStatus.UNAUTHORIZED).json({ message: "Invalid email or password" });
+        if (!user) {
+            if (req.recordFailedLogin) await req.recordFailedLogin();
+            return res.status(HttpStatus.UNAUTHORIZED).json({ message: "Invalid email or password" });
+        }
 
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(HttpStatus.UNAUTHORIZED).json({ message: "Invalid email or password" });
+        if (!isMatch) {
+            if (req.recordFailedLogin) await req.recordFailedLogin();
+            return res.status(HttpStatus.UNAUTHORIZED).json({ message: "Invalid email or password" });
+        }
+
+        if (req.recordSuccessfulLogin) await req.recordSuccessfulLogin();
 
         const token = jwt.sign(
             { userId: user._id, role: user.role },
