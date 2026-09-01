@@ -9,5 +9,7 @@ const reviewSchema = new mongoose.Schema({
 
 // Index to quickly pull all reviews for a single product
 reviewSchema.index({ product: 1 });
+// One review per product per user
+reviewSchema.index({ product: 1, user: 1 }, { unique: true });
 
 module.exports = mongoose.model('Review', reviewSchema);

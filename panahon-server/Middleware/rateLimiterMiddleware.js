@@ -3,7 +3,7 @@ const LoginAttempt = require("../Models/loginAttemptModel.js");
 
 const standardLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1, // limit each IP to 100 requests per windowMs
+    max: 100, // limit each IP to 100 requests per windowMs
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: "Too many requests from this IP, please try again after 15 minutes." },

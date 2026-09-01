@@ -1,57 +1,68 @@
+const mongoose = require('mongoose');
 const Product = require('../Models/productModel');
 const Category = require('../Models/categoryModel');
-const { HttpStatus } = require('../config/constants');
+const { HttpStatus, MAX_PAGE_SIZE } = require('../config/constants');
+const { containsMatcher, exactMatcher, toSearchString } = require('../config/sanitize');
+const { failServer, failValidation } = require('../Middleware/errorHandler');
+const { removeUploadedFile } = require('../Middleware/uploadMiddleware');
 
 // Get all products with pagination, filtering, sorting, and searching
 exports.getAllProducts = async (req, res) => {
     try {
-        const { page = 1, limit = 10, search, sort, category, supplier, ...filters } = req.query;
+        const { page, limit, search, sort, category, minPrice, maxPrice } = req.query;
 
-        let query = {};
+        const query = {};
 
-        // Keyword Search
-        if (search) {
-            query.$or = [
-                { productName: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } }
-            ];
+        // Keyword search - the term is escaped so regex metacharacters are literal
+        const searchMatcher = containsMatcher(search);
+        if (searchMatcher) {
+            query.$or = [{ productName: searchMatcher }, { description: searchMatcher }];
         }
 
-        // Filtering by Category Name (Resolving ObjectId)
-        if (category) {
-            const categoryDoc = await Category.findOne({ categoryName: { $regex: new RegExp(`^${category}$`, 'i') } });
-            if (categoryDoc) {
-                query.category = categoryDoc._id;
+        // Filtering by category id, or by exact category name (case-insensitive)
+        const categoryTerm = toSearchString(category);
+        if (categoryTerm) {
+            if (mongoose.isValidObjectId(categoryTerm)) {
+                query.category = categoryTerm;
             } else {
-                // If category is not found, return empty result
-                return res.status(HttpStatus.OK).json({
-                    success: true,
-                    message: "Products retrieved successfully.",
-                    count: 0,
-                    data: []
-                });
+                const categoryDoc = await Category.findOne({ categoryName: exactMatcher(categoryTerm) });
+                if (!categoryDoc) {
+                    // If category is not found, return empty result
+                    return res.status(HttpStatus.OK).json({
+                        success: true,
+                        message: 'Products retrieved successfully.',
+                        count: 0,
+                        total: 0,
+                        totalPages: 0,
+                        currentPage: 1,
+                        data: []
+                    });
+                }
+                query.category = categoryDoc._id;
             }
         }
 
-        // Additional filters 
-        Object.assign(query, filters);
-
-        // Sorting
-        let sortOption = {};
-        if (sort) {
-            // sort=price or sort=-price
-            const sortFields = sort.split(',').join(' ');
-            sortOption = sortFields;
+        // Price range filter (only these extra filters are accepted - never raw query keys)
+        const min = Number(minPrice);
+        const max = Number(maxPrice);
+        if (Number.isFinite(min) || Number.isFinite(max)) {
+            query.price = {};
+            if (Number.isFinite(min)) query.price.$gte = min;
+            if (Number.isFinite(max)) query.price.$lte = max;
         }
 
-        // Pagination
-        const limitNum = parseInt(limit, 10);
-        const pageNum = parseInt(page, 10);
+        // Sorting - only these fields may be sorted on, so no arbitrary paths reach Mongo
+        const SORTABLE = ['price', '-price', 'productName', '-productName', 'createdAt', '-createdAt'];
+        const sortOption = SORTABLE.includes(toSearchString(sort)) ? toSearchString(sort) : '-createdAt';
+
+        // Pagination - capped so one request cannot pull the whole collection
+        const limitNum = Math.min(Math.max(parseInt(limit, 10) || 10, 1), MAX_PAGE_SIZE);
+        const pageNum = Math.max(parseInt(page, 10) || 1, 1);
         const skip = (pageNum - 1) * limitNum;
 
         const products = await Product.find(query)
             .populate('category')
-            .populate('seller', 'firstName lastName')
+            .populate('seller', 'name email')
             .sort(sortOption)
             .skip(skip)
             .limit(limitNum);
@@ -60,7 +71,7 @@ exports.getAllProducts = async (req, res) => {
 
         res.status(HttpStatus.OK).json({
             success: true,
-            message: "Products retrieved successfully.",
+            message: 'Products retrieved successfully.',
             count: products.length,
             total: totalProducts,
             totalPages: Math.ceil(totalProducts / limitNum),
@@ -68,62 +79,102 @@ exports.getAllProducts = async (req, res) => {
             data: products
         });
     } catch (error) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            message: error.message
-        });
+        failServer(res, error, 'getAllProducts', 'Could not load the catalog. Please try again.');
     }
 };
 
 // Create a new product
 exports.createProduct = async (req, res) => {
     try {
-        const newProduct = new Product(req.body);
-        const savedProduct = await newProduct.save();
+        const { productName, description, price, stockQuantity, category, imageUrl } = req.body;
+
+        const categoryExists = await Category.findById(category);
+        if (!categoryExists) {
+            return res.status(HttpStatus.BAD_REQUEST).json({
+                success: false,
+                message: 'The selected category does not exist.'
+            });
+        }
+
+        const savedProduct = await new Product({
+            productName,
+            description,
+            price,
+            stockQuantity,
+            imageUrl,
+            category,
+            seller: req.user.userId // the signed-in admin owns the listing
+        }).save();
+
+        const populated = await savedProduct.populate('category');
+
         res.status(HttpStatus.CREATED).json({
             success: true,
-            message: "Product created successfully.",
-            data: savedProduct
+            message: 'Product created successfully.',
+            data: populated
         });
     } catch (error) {
-        res.status(HttpStatus.BAD_REQUEST).json({
-            success: false,
-            message: error.message
-        });
+        failValidation(res, error, 'createProduct', 'The product could not be created.');
     }
 };
 
 // Get product by ID
 exports.getProductById = async (req, res) => {
     try {
-        const product = await Product.findById(req.params.id).populate('category').populate('seller', 'firstName lastName');
+        const product = await Product.findById(req.params.id)
+            .populate('category')
+            .populate('seller', 'name email');
+
         if (!product) {
-            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: "Product not found." });
+            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Product not found.' });
         }
         res.status(HttpStatus.OK).json({
             success: true,
-            message: "Product retrieved successfully.",
+            message: 'Product retrieved successfully.',
             data: product
         });
     } catch (error) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+        failServer(res, error, 'getProductById', 'Could not load this product. Please try again.');
     }
 };
 
 // Update product
 exports.updateProduct = async (req, res) => {
     try {
-        const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const { productName, description, price, stockQuantity, category, imageUrl } = req.body;
+
+        const categoryExists = await Category.findById(category);
+        if (!categoryExists) {
+            return res.status(HttpStatus.BAD_REQUEST).json({
+                success: false,
+                message: 'The selected category does not exist.'
+            });
+        }
+
+        // Read the old image before overwriting it so a replaced upload can be cleaned up.
+        const previous = await Product.findById(req.params.id).select('imageUrl');
+
+        const updatedProduct = await Product.findByIdAndUpdate(
+            req.params.id,
+            { productName, description, price, stockQuantity, category, imageUrl },
+            { new: true, runValidators: true }
+        ).populate('category');
+
         if (!updatedProduct) {
-            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: "Product not found." });
+            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Product not found.' });
+        }
+
+        // Only touches files under /uploads - a seeded /img/... path is left alone.
+        if (previous && previous.imageUrl && previous.imageUrl !== updatedProduct.imageUrl) {
+            removeUploadedFile(previous.imageUrl);
         }
         res.status(HttpStatus.OK).json({
             success: true,
-            message: "Product updated successfully.",
+            message: 'Product updated successfully.',
             data: updatedProduct
         });
     } catch (error) {
-        res.status(HttpStatus.BAD_REQUEST).json({ success: false, message: error.message });
+        failValidation(res, error, 'updateProduct', 'The product could not be updated.');
     }
 };
 
@@ -132,14 +183,17 @@ exports.deleteProduct = async (req, res) => {
     try {
         const deletedProduct = await Product.findByIdAndDelete(req.params.id);
         if (!deletedProduct) {
-            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: "Product not found." });
+            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Product not found.' });
         }
+
+        removeUploadedFile(deletedProduct.imageUrl);
+
         res.status(HttpStatus.OK).json({
             success: true,
-            message: "Product deleted successfully.",
+            message: 'Product deleted successfully.',
             data: null
         });
     } catch (error) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+        failServer(res, error, 'deleteProduct', 'The product could not be deleted.');
     }
 };
