@@ -81,7 +81,7 @@ const errorHandler = (error, request, response, next) => {
   // admin form can show them under the picker like any other validation error.
   if (error.name === "MulterError") {
     const messages = {
-      LIMIT_FILE_SIZE: "Image must be 2MB or smaller.",
+      LIMIT_FILE_SIZE: "Image must be 5MB or smaller.",
       LIMIT_FILE_COUNT: "Only one image can be uploaded at a time.",
       LIMIT_UNEXPECTED_FILE: error.message || "Only one image can be uploaded at a time.",
     };

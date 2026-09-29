@@ -4,7 +4,7 @@ const Category = require('../Models/categoryModel');
 const { HttpStatus, MAX_PAGE_SIZE } = require('../config/constants');
 const { containsMatcher, exactMatcher, toSearchString } = require('../config/sanitize');
 const { failServer, failValidation } = require('../Middleware/errorHandler');
-const { removeUploadedFile } = require('../Middleware/uploadMiddleware');
+const cloudinary = require('../config/cloudinary');
 
 // Get all products with pagination, filtering, sorting, and searching
 exports.getAllProducts = async (req, res) => {
@@ -96,12 +96,20 @@ exports.createProduct = async (req, res) => {
             });
         }
 
+        // A file sent with the form goes to Cloudinary; its URL is stored on the product.
+        let image = { imageUrl, imagePublicId: '' };
+        if (req.file) {
+            const result = await cloudinary.uploadBuffer(req.file.buffer);
+            image = { imageUrl: result.secure_url, imagePublicId: result.public_id };
+        }
+
         const savedProduct = await new Product({
             productName,
             description,
             price,
             stockQuantity,
-            imageUrl,
+            imageUrl: image.imageUrl,
+            imagePublicId: image.imagePublicId,
             category,
             seller: req.user.userId // the signed-in admin owns the listing
         }).save();
@@ -151,12 +159,25 @@ exports.updateProduct = async (req, res) => {
             });
         }
 
-        // Read the old image before overwriting it so a replaced upload can be cleaned up.
-        const previous = await Product.findById(req.params.id).select('imageUrl');
+        // Read the old image before overwriting it so a replaced image can be cleaned up.
+        const previous = await Product.findById(req.params.id).select('imageUrl imagePublicId');
+        if (!previous) {
+            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Product not found.' });
+        }
+
+        // Keep the current image unless a new file was sent or the image was removed.
+        const update = { productName, description, price, stockQuantity, category, imageUrl };
+        if (req.file) {
+            const result = await cloudinary.uploadBuffer(req.file.buffer);
+            update.imageUrl = result.secure_url;
+            update.imagePublicId = result.public_id;
+        } else if (imageUrl !== previous.imageUrl) {
+            update.imagePublicId = '';
+        }
 
         const updatedProduct = await Product.findByIdAndUpdate(
             req.params.id,
-            { productName, description, price, stockQuantity, category, imageUrl },
+            update,
             { new: true, runValidators: true }
         ).populate('category');
 
@@ -164,9 +185,9 @@ exports.updateProduct = async (req, res) => {
             return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Product not found.' });
         }
 
-        // Only touches files under /uploads - a seeded /img/... path is left alone.
-        if (previous && previous.imageUrl && previous.imageUrl !== updatedProduct.imageUrl) {
-            removeUploadedFile(previous.imageUrl);
+        // The old Cloudinary image is no longer used by this product.
+        if (previous.imagePublicId && previous.imagePublicId !== updatedProduct.imagePublicId) {
+            await cloudinary.deleteImage(previous.imagePublicId);
         }
         res.status(HttpStatus.OK).json({
             success: true,
@@ -186,7 +207,7 @@ exports.deleteProduct = async (req, res) => {
             return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Product not found.' });
         }
 
-        removeUploadedFile(deletedProduct.imageUrl);
+        await cloudinary.deleteImage(deletedProduct.imagePublicId);
 
         res.status(HttpStatus.OK).json({
             success: true,
@@ -195,5 +216,43 @@ exports.deleteProduct = async (req, res) => {
         });
     } catch (error) {
         failServer(res, error, 'deleteProduct', 'The product could not be deleted.');
+    }
+};
+
+// Upload / replace a product's image
+// POST /api/v1/products/:id/upload-image  (Admin) - multipart/form-data, field name "image"
+exports.uploadProductImage = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(HttpStatus.BAD_REQUEST).json({
+                success: false,
+                message: 'Please choose an image to upload.',
+                errors: [{ field: 'image', message: 'Please choose an image to upload.' }]
+            });
+        }
+
+        const product = await Product.findById(req.params.id);
+        if (!product) {
+            return res.status(HttpStatus.NOT_FOUND).json({ success: false, message: 'Product not found.' });
+        }
+
+        const result = await cloudinary.uploadBuffer(req.file.buffer);
+
+        // Replace: point the product at the new image, then remove the old one from Cloudinary.
+        const oldPublicId = product.imagePublicId;
+        product.imageUrl = result.secure_url;
+        product.imagePublicId = result.public_id;
+        await product.save();
+        await cloudinary.deleteImage(oldPublicId);
+
+        res.status(HttpStatus.OK).json({
+            success: true,
+            message: 'Product image uploaded successfully.',
+            imageUrl: result.secure_url,
+            publicId: result.public_id,
+            data: product
+        });
+    } catch (error) {
+        failServer(res, error, 'uploadProductImage', 'The image could not be uploaded.');
     }
 };

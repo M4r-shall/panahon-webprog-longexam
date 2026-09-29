@@ -6,6 +6,7 @@ const productSchema = new mongoose.Schema({
     price: { type: Number, required: true, min: 0 },
     stockQuantity: { type: Number, required: true, default: 0, min: 0 },
     imageUrl: { type: String, default: '' },
+    imagePublicId: { type: String, default: '' }, // Cloudinary id, used to delete/replace the image
     category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
     seller: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 }, { timestamps: true });
