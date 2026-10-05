@@ -199,6 +199,48 @@ const categoryUpdateValidation = [
     ...categoryValidation,
 ];
 
+const supplierValidation = [
+    body('supplierName')
+        .isString().withMessage('Supplier name must be a string')
+        .bail()
+        .trim()
+        .notEmpty().withMessage('Supplier name is required')
+        .isLength({ min: 2 }).withMessage('Supplier name must be at least 2 characters long')
+        .isLength({ max: FIELD_LIMITS.supplierName }).withMessage(`Supplier name must be at most ${FIELD_LIMITS.supplierName} characters`),
+    body('contactPerson')
+        .optional({ values: 'falsy' })
+        .isString().withMessage('Contact person must be a string')
+        .bail()
+        .trim()
+        .isLength({ max: FIELD_LIMITS.name }).withMessage(`Contact person must be at most ${FIELD_LIMITS.name} characters`),
+    body('email')
+        .optional({ values: 'falsy' })
+        .isString().withMessage('Email must be a string')
+        .bail()
+        .trim()
+        .isEmail().withMessage('Invalid email address')
+        .isLength({ max: FIELD_LIMITS.email }).withMessage(`Email must be at most ${FIELD_LIMITS.email} characters`),
+    body('phone')
+        .optional({ values: 'falsy' })
+        .isString().withMessage('Phone must be a string')
+        .bail()
+        .trim()
+        .matches(/^[0-9+\-\s()]{7,}$/).withMessage('Phone may only contain digits, spaces, +, - and parentheses')
+        .isLength({ max: FIELD_LIMITS.phone }).withMessage(`Phone must be at most ${FIELD_LIMITS.phone} characters`),
+    body('address')
+        .optional({ values: 'falsy' })
+        .isString().withMessage('Address must be a string')
+        .bail()
+        .trim()
+        .isLength({ max: FIELD_LIMITS.address }).withMessage(`Address must be at most ${FIELD_LIMITS.address} characters`),
+    handleValidation
+];
+
+const supplierUpdateValidation = [
+    objectIdCheck('id', 'supplier'),
+    ...supplierValidation,
+];
+
 const reviewValidation = [
     body('product')
         .custom(isObjectId).withMessage('A valid product is required'),
@@ -281,6 +323,8 @@ module.exports = {
     productUpdateValidation,
     categoryValidation,
     categoryUpdateValidation,
+    supplierValidation,
+    supplierUpdateValidation,
     reviewValidation,
     reviewUpdateValidation,
     cartItemValidation,

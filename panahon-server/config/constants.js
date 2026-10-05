@@ -26,6 +26,8 @@ const FIELD_LIMITS = {
     comment: 500,
     imageUrl: 500,
     shippingAddress: 200,
+    supplierName: 80,
+    phone: 20,
 };
 
 // Largest page a client may request from a list endpoint.

@@ -10,7 +10,10 @@ require('dotenv').config();
 
 const { UPLOADS_DIR, UPLOADS_ROUTE } = require('./Middleware/uploadMiddleware');
 
+const { swaggerDocs } = require('./config/swagger');
+
 const categoryRoutes = require('./Routes/categoryRoutes');
+const supplierRoutes = require('./Routes/supplierRoutes');
 const userRoutes = require('./Routes/userRoutes');
 const productRoutes = require('./Routes/productRoutes');
 const reviewRoutes = require('./Routes/reviewRoutes');
@@ -74,6 +77,7 @@ app.get('/api/v1/health', (req, res) => {
 
 // Routes
 app.use('/api/v1/categories', categoryRoutes);
+app.use('/api/v1/suppliers', supplierRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/reviews', reviewRoutes);
@@ -81,11 +85,16 @@ app.use('/api/v1/carts', cartRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/uploads', uploadRoutes);
 
+// Swagger UI at /api-docs, raw spec at /api-docs.json. Registered before the 404
+// handler, otherwise the catch-all would answer these paths first.
+swaggerDocs(app);
+
 // Unknown route + catch-all error responses (must stay last)
 app.use(notFoundHandler);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    console.log(`API docs available at http://localhost:${PORT}/api-docs`);
     console.log(`Accepting requests from: ${allowedOrigins.join(', ')}`);
 });

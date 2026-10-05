@@ -3,7 +3,7 @@
  *
  *   npm run seed
  *
- * This wipes the categories, products, users, reviews, carts, and orders
+ * This wipes the categories, suppliers, products, users, reviews, carts, and orders
  * collections first, so it is safe to re-run before a demo.
  */
 const mongoose = require('mongoose');
@@ -11,6 +11,7 @@ const bcrypt = require('bcrypt');
 require('dotenv').config({ override: true });
 
 const Category = require('./Models/categoryModel');
+const Supplier = require('./Models/supplierModel');
 const Product = require('./Models/productModel');
 const User = require('./Models/userModel');
 const Review = require('./Models/reviewModel');
@@ -103,6 +104,30 @@ const products = [
     },
 ];
 
+const suppliers = [
+    {
+        supplierName: 'Sampaloc School Supplies Co.',
+        contactPerson: 'Ana Reyes',
+        email: 'sales@sampalocsupplies.ph',
+        phone: '+63 917 123 4567',
+        address: '1234 P. Noval St., Sampaloc, Manila',
+    },
+    {
+        supplierName: 'Bulldog Threads Apparel',
+        contactPerson: 'Carlo Mendoza',
+        email: 'orders@bulldogthreads.ph',
+        phone: '+63 918 765 4321',
+        address: 'Espana Blvd, Manila',
+    },
+    {
+        supplierName: 'Metro Gadget Hub',
+        contactPerson: 'Liza Tan',
+        email: 'hello@metrogadgethub.ph',
+        phone: '(02) 8123 4567',
+        address: 'Gilmore Ave, Quezon City',
+    },
+];
+
 const accounts = [
     {
         name: 'Marius Panahon',
@@ -137,6 +162,7 @@ const seed = async () => {
 
     await Promise.all([
         Category.deleteMany({}),
+        Supplier.deleteMany({}),
         Product.deleteMany({}),
         User.deleteMany({}),
         Review.deleteMany({}),
@@ -150,6 +176,9 @@ const seed = async () => {
         savedCategories.map((category) => [category.categoryName, category._id])
     );
     console.log(`Inserted ${savedCategories.length} categories`);
+
+    const savedSuppliers = await Supplier.insertMany(suppliers);
+    console.log(`Inserted ${savedSuppliers.length} suppliers`);
 
     const savedUsers = await User.insertMany(
         await Promise.all(
